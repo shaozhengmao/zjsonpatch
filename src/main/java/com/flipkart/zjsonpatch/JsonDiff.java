@@ -22,7 +22,12 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.collections4.ListUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  * User: gopi.vishwakarma
@@ -40,11 +45,12 @@ public final class JsonDiff {
     }
 
     public static JsonNode asJson(final JsonNode source, final JsonNode target, EnumSet<DiffFlags> flags) {
+        //创建存储最终比较结果的集合
         final List<Diff> diffs = new ArrayList<Diff>();
         List<Object> path = new ArrayList<Object>(0);
 
         // generating diffs in the order of their occurrence
-
+        //按照资源的顺序构建不同的内容
         generateDiffs(diffs, path, source, target);
 
         if (!flags.contains(DiffFlags.OMIT_MOVE_OPERATION)) {
@@ -336,48 +342,74 @@ public final class JsonDiff {
 
     private static void compareArray(List<Diff> diffs, List<Object> path, JsonNode source, JsonNode target) {
         List<JsonNode> lcs = getLCS(source, target);
+        //source 指针
         int srcIdx = 0;
+        //target 指针
         int targetIdx = 0;
+        //lcs 指针
         int lcsIdx = 0;
+        //source 尺寸
         int srcSize = source.size();
+        //target 尺寸
         int targetSize = target.size();
+        //lcs 尺寸
         int lcsSize = lcs.size();
-
+        //数组里的对象坐标
         int pos = 0;
         while (lcsIdx < lcsSize) {
             JsonNode lcsNode = lcs.get(lcsIdx);
             JsonNode srcNode = source.get(srcIdx);
             JsonNode targetNode = target.get(targetIdx);
 
-
-            if (lcsNode.equals(srcNode) && lcsNode.equals(targetNode)) { // Both are same as lcs node, nothing to do here
+            // Both are same as lcs node, nothing to do here
+            // lcs node 和 src target都相同 则所有指针移动 继续比较
+            if (lcsNode.equals(srcNode) && lcsNode.equals(targetNode)) {
                 srcIdx++;
                 targetIdx++;
                 lcsIdx++;
                 pos++;
             } else {
-                if (lcsNode.equals(srcNode)) { // src node is same as lcs, but not targetNode
+                // src node is same as lcs, but not targetNode
+                //lcs拿到的值和src node值相同 但是和target node值不同
+                // 说明target比source多，所以source 需要add 当前targetNode
+                if (lcsNode.equals(srcNode)) {
                     //addition
                     List<Object> currPath = getPath(path, pos);
+                    //targetNode 需要add 这个path的 node
                     diffs.add(Diff.generateDiff(Operation.ADD, currPath, targetNode));
+                    //数组里的对象坐标指针移动
                     pos++;
+                    //target指针移动 比较target 下一个node
                     targetIdx++;
-                } else if (lcsNode.equals(targetNode)) { //targetNode node is same as lcs, but not src
+
+                    //targetNode node is same as lcs, but not src
+                    //lcs拿到的值和target node值相同 但是和src node值不同
+                    //删除操作 数组里的对象坐标指针不移动
+                    //说明source 比 target多 所以需要source remove 当前srcNode
+                } else if (lcsNode.equals(targetNode)) {
                     //removal,
                     List<Object> currPath = getPath(path, pos);
+                    //srcNode 需要remove 这个path的 node
                     diffs.add(Diff.generateDiff(Operation.REMOVE, currPath, srcNode));
+                    //source指针移动 比较source 下一个node
                     srcIdx++;
                 } else {
                     List<Object> currPath = getPath(path, pos);
                     //both are unequal to lcs node
+                    //如果srcNode 和 targetNode 和 lcsNode都不同，则继续递归比较
                     generateDiffs(diffs, currPath, srcNode, targetNode);
+                    //指针移动 比较source,target 下一个node
                     srcIdx++;
                     targetIdx++;
+                    //数组里的对象坐标指针移动
                     pos++;
                 }
             }
         }
 
+        //最大公共子串和source，target比较完成后，
+        // 检查source 和 target node节点是否都遍历比较完成
+        // 如果没有完成 则继续递归调用
         while ((srcIdx < srcSize) && (targetIdx < targetSize)) {
             JsonNode srcNode = source.get(srcIdx);
             JsonNode targetNode = target.get(targetIdx);
@@ -387,12 +419,15 @@ public final class JsonDiff {
             targetIdx++;
             pos++;
         }
+
+        //处理剩余的target node
         pos = addRemaining(diffs, path, target, pos, targetIdx, targetSize);
+        //处理剩余的source node
         removeRemaining(diffs, path, pos, srcIdx, srcSize, source);
     }
 
     private static Integer removeRemaining(List<Diff> diffs, List<Object> path, int pos, int srcIdx, int srcSize, JsonNode source) {
-
+        //比较完成之后  剩余的srcNode 需要remove 这个path的 node
         while (srcIdx < srcSize) {
             List<Object> currPath = getPath(path, pos);
             diffs.add(Diff.generateDiff(Operation.REMOVE, currPath, source.get(srcIdx)));
@@ -402,6 +437,7 @@ public final class JsonDiff {
     }
 
     private static Integer addRemaining(List<Diff> diffs, List<Object> path, JsonNode target, int pos, int targetIdx, int targetSize) {
+        //比较完成之后，剩余的targetNode 需要构建成 add 这个path的 node
         while (targetIdx < targetSize) {
             JsonNode jsonNode = target.get(targetIdx);
             List<Object> currPath = getPath(path, pos);
