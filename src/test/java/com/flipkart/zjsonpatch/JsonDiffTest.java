@@ -149,4 +149,21 @@ public class JsonDiffTest {
         JsonNode expected = objectMapper.readTree("{\"profiles\":{\"abc\":[],\"def\":[{\"hello\":\"world2\"},{\"hello\":\"world\"}]}}");
         Assert.assertTrue(target.equals(expected));
     }
+
+    @Test
+    public void testCustom() throws IOException {
+        String expect_0 = "{\"list\":[{\"id\":1566191147593281395},{\"id\":1566196494578281356},{\"id\":1566197027522281110}]}";
+        String actual_0 = "{\"list\":[{\"id\":1566196494578281356},{\"id\":1566197027522281110},{\"id\":1566197027522281111}]}";
+
+        JsonNode actualNode = objectMapper.readTree(actual_0);
+        JsonNode expectNode = objectMapper.readTree(expect_0);
+
+        /**
+         * 使用底层原语进行json比较
+         * only have ADD, REMOVE, REPLACE, Don't normalize operations into MOVE & COPY
+         */
+        EnumSet<DiffFlags> flags = DiffFlags.dontNormalizeOpIntoMoveAndCopy().clone();
+        JsonNode diffResultNode = JsonDiff.asJson(actualNode, expectNode, flags);
+
+    }
 }
